@@ -7,6 +7,8 @@ import json
 import pandas as pd
 import csv
 import os
+import subprocess
+import sys
 
 from decimal import Decimal
 from typing import Any
@@ -560,6 +562,26 @@ class SqlDialect:
     
 
     @classmethod
+    def _run_post_init_scripts(cls, database: str):
+        post_init_dir = config.SQL_SCRIPTS_DIR / database / "post-init"
+        if not post_init_dir.exists():
+            return
+        for script_path in sorted(post_init_dir.glob("*.sql")):
+            logger.info(f"Running post-init script: {script_path.name}")
+            with cls.get_connection(database=database) as conn:
+                conn.execute(sqlalchemy.text(script_path.read_text(encoding="utf-8")))
+                conn.commit()
+        run_py = post_init_dir / "run.py"
+        if run_py.exists():
+            logger.info("Running post-init run.py")
+            subprocess.run(
+                [sys.executable, "run.py"],
+                cwd=post_init_dir,
+                check=True,
+                env={**os.environ, "PYTHONPATH": str(post_init_dir)},
+            )
+
+    @classmethod
     def init_database(cls):
         """
             Deploys database objects
@@ -579,7 +601,10 @@ class SqlDialect:
             tables = cls._get_tables(db)
             for table in tables:
                 cls.read_csv_to_sql(table)
-        
+
+        for db in dbs:
+            cls._run_post_init_scripts(db)
+
         config.STATUS_FILE.write_text(json.dumps({"status": "ready"}, indent=2))
 
         

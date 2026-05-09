@@ -80,8 +80,13 @@ sql-scripts/
     │   └── dbo.Orders.sql
     ├── view/
     │   └── dbo.CustomerSummary.sql
-    └── stored-procedure/
-        └── dbo.GetOrder.sql
+    ├── stored-procedure/
+    │   └── dbo.GetOrder.sql
+    └── post-init/          ← optional, runs after all objects and data are loaded
+        ├── 01_seed.sql
+        ├── 02_grants.sql
+        ├── run.py          ← optional Python entry point, runs after all SQL files
+        └── helpers.py      ← imported by run.py, not executed directly
 ```
 
 `order.json` tells the initializer what to create and in what order:
@@ -95,7 +100,31 @@ sql-scripts/
 ]
 ```
 
-### 3. Set Up Your Restore Point Directory
+### 3. Post-Init Scripts (Optional)
+
+Each database folder can contain an optional `post-init/` directory. Scripts there run after all objects have been created and data has been restored — useful for seeding data, granting permissions, or any one-off setup that doesn't belong in the schema itself.
+
+**SQL files** (`.sql`) run against the owning database in alphabetical order. Numeric prefixes control sequence:
+
+```
+post-init/
+  01_seed_data.sql
+  02_grant_permissions.sql
+```
+
+**Python** — if a `run.py` file is present, it runs after all SQL files. It is the only Python file executed directly; any other `.py` files in the folder are treated as importable modules. `run.py` runs with the `post-init/` directory on `PYTHONPATH`, so sibling imports work:
+
+```python
+# run.py
+from helpers import seed_lookup_tables
+seed_lookup_tables()
+```
+
+`run.py` is fully standalone — no database connection or context is injected. If it needs to connect to the database, it reads the same environment variables available to the container (`HOST`, `USERNAME`, `PASSWORD`, `DIALECT`, etc.).
+
+---
+
+### 4. Set Up Your Restore Point Directory
 
 The restore point directory can start empty — db-deployer will create the first backup when you shut down the container. After the first run, it will look like this:
 
