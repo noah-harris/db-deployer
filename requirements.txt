@@ -1,0 +1,5 @@
+sqlalchemy
+pandas
+colorlog
+dotenv
+pyodbc

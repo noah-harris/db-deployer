@@ -1,0 +1,23 @@
+services:
+  initializer:
+    container_name: initializer # Name of the initializer container
+    build:
+      context: . 
+    depends_on:
+      db: # Database service must be healthy before starting the initializer
+        condition: service_healthy
+    environment:
+      USERNAME: ${USERNAME}
+      PASSWORD: ${PASSWORD}
+      HOST: db
+      INTERNAL_PORT: 1433
+      EXTERNAL_PORT: ${EXTERNAL_PORT}
+      DIALECT: ${DIALECT}
+
+    volumes:
+      - restore:/app/restore
+      - sql-scripts:/app/sql-scripts
+
+volumes:
+  restore:
+  sql-scripts:
