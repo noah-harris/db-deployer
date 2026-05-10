@@ -71,7 +71,12 @@ Your SQL project directory should be organized like this:
 
 ```
 sql-scripts/
-├── order.json              ← defines the creation order for all objects
+├── order.json              ← defines creation order and post-init steps
+├── post-init/              ← optional, post-init scripts live here
+│   ├── 01_seed.sql
+│   ├── 02_grants.sql
+│   ├── run.py              ← Python entry point
+│   └── helpers.py          ← imported by run.py, not executed directly
 └── your_database_name/
     ├── schema/
     │   └── dbo.sql
@@ -80,39 +85,43 @@ sql-scripts/
     │   └── dbo.Orders.sql
     ├── view/
     │   └── dbo.CustomerSummary.sql
-    ├── stored-procedure/
-    │   └── dbo.GetOrder.sql
-    └── post-init/          ← optional, runs after all objects and data are loaded
-        ├── 01_seed.sql
-        ├── 02_grants.sql
-        ├── run.py          ← optional Python entry point, runs after all SQL files
-        └── helpers.py      ← imported by run.py, not executed directly
+    └── stored-procedure/
+        └── dbo.GetOrder.sql
 ```
 
 `order.json` tells the initializer what to create and in what order:
 
 ```json
-[
-  { "database": "your_database_name", "schema": "dbo", "type": "schema",   "name": "dbo" },
-  { "database": "your_database_name", "schema": "dbo", "type": "table",    "name": "Customers" },
-  { "database": "your_database_name", "schema": "dbo", "type": "table",    "name": "Orders" },
-  { "database": "your_database_name", "schema": "dbo", "type": "view",     "name": "CustomerSummary" }
-]
+{
+  "project": [
+    { "database": "your_database_name", "schema": "dbo", "type": "schema",   "name": "dbo" },
+    { "database": "your_database_name", "schema": "dbo", "type": "table",    "name": "Customers" },
+    { "database": "your_database_name", "schema": "dbo", "type": "table",    "name": "Orders" },
+    { "database": "your_database_name", "schema": "dbo", "type": "view",     "name": "CustomerSummary" }
+  ],
+  "post-init": [
+    { "database": "your_database_name", "file": "01_seed.sql" },
+    { "database": "your_database_name", "file": "02_grants.sql" },
+    { "file": "run.py" }
+  ]
+}
 ```
 
 ### 3. Post-Init Scripts (Optional)
 
-Each database folder can contain an optional `post-init/` directory. Scripts there run after all objects have been created and data has been restored — useful for seeding data, granting permissions, or any one-off setup that doesn't belong in the schema itself.
+After all objects are created and data is restored, db-deployer runs any steps listed under `"post-init"` in `order.json` in the order they appear. Scripts live in a top-level `post-init/` folder inside your SQL project directory.
 
-**SQL files** (`.sql`) run against the owning database in alphabetical order. Numeric prefixes control sequence:
+**SQL files** require a `database` field — they execute against that database:
 
-```
-post-init/
-  01_seed_data.sql
-  02_grant_permissions.sql
+```json
+{ "database": "your_database_name", "file": "01_seed.sql" }
 ```
 
-**Python** — if a `run.py` file is present, it runs after all SQL files. It is the only Python file executed directly; any other `.py` files in the folder are treated as importable modules. `run.py` runs with the `post-init/` directory on `PYTHONPATH`, so sibling imports work:
+**Python files** omit `database` and run as standalone subprocesses. The `post-init/` directory is added to `PYTHONPATH`, so files in the same folder can import each other freely:
+
+```json
+{ "file": "run.py" }
+```
 
 ```python
 # run.py
@@ -120,7 +129,7 @@ from helpers import seed_lookup_tables
 seed_lookup_tables()
 ```
 
-`run.py` is fully standalone — no database connection or context is injected. If it needs to connect to the database, it reads the same environment variables available to the container (`HOST`, `USERNAME`, `PASSWORD`, `DIALECT`, etc.).
+If a Python script needs to connect to the database, use the environment variables already available in the container: `HOST`, `USERNAME`, `PASSWORD`, `DIALECT`, `EXTERNAL_PORT`.
 
 ---
 
