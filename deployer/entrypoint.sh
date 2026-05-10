@@ -9,12 +9,13 @@ if [ $INIT_EXIT -ne 0 ]; then
     exit $INIT_EXIT
 fi
 
-cleanup() {
-    python -c "from deployer.save import create_restore_point; create_restore_point()"
-    exit 0
-}
+python -c "from deployer.save import create_restore_point; create_restore_point()"
+SAVE_EXIT=$?
 
-trap cleanup SIGTERM SIGINT
+if [ $SAVE_EXIT -ne 0 ]; then
+    echo "Restore point creation failed (exit $SAVE_EXIT) — container kept alive for inspection. Use 'docker exec -it initializer bash'."
+    sleep infinity
+    exit $SAVE_EXIT
+fi
 
-sleep infinity &
-wait $!
+sleep infinity
