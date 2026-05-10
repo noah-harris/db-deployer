@@ -53,7 +53,6 @@ class SqlDialect:
     @classmethod
     def _get_connection_string(cls, database:str) -> str:
         base = f"{cls.DIALECT_NAME}+{cls.PYTHON_DRIVER}://{cls.USERNAME}:{cls.PASSWORD}@{cls.HOST},{cls.PORT}/{database}"
-        logger.debug(f"Constructed connection string: {base} with params {cls.CONNECTION_PARAMS}")
         if cls.CONNECTION_PARAMS != {}:
             param_str = "&".join([f"{k}={v}" for k, v in cls.CONNECTION_PARAMS.items()])
             return f"{base}?{param_str}"
@@ -63,7 +62,6 @@ class SqlDialect:
     @classmethod
     def _get_order_json(cls) -> dict:
         with open(config.ORDER_FILE) as f:
-            logger.debug(f)
             logger.debug(f"Reading order file from {config.ORDER_FILE}")
             order_data = json.load(f)
         return order_data
@@ -95,7 +93,6 @@ class SqlDialect:
     @classmethod
     def _get_objects_to_create(cls) -> list[DatabaseObject]:
         objs = []
-
         order_data = cls._get_order_json()
         order:list[dict] = order_data["project"]
 
@@ -497,7 +494,7 @@ class SqlDialect:
         csv_path: Path = restore_point / table.database / f"{table.schema}.{table.name}.csv"
 
         if not csv_path.exists():
-            print(f"Warning: CSV for table {table.database}.{table.schema}.{table.name} not found at {csv_path}. Skipping import.")
+            logger.warning(f"Warning: CSV for table {table.database}.{table.schema}.{table.name} not found at {csv_path}. Skipping import.")
             return
     
         raw = csv_path.read_bytes()

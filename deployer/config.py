@@ -9,7 +9,7 @@ def make_logger(name: str) -> logging.Logger:
     if not root.handlers:
         handler = colorlog.StreamHandler()
         handler.setFormatter(colorlog.ColoredFormatter(
-            fmt='%(log_color)s[%(asctime)s] [%(levelname)s] %(message)s',
+            fmt='%(log_color)s[%(name)s] [%(asctime)s] [%(levelname)s] %(message)s',
             datefmt="%H:%M:%S"
         ))
         root.addHandler(handler)

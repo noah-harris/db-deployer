@@ -9,8 +9,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      HOST: db
-      INTERNAL_PORT: 1433
+      HOST: ${HOST}
+      INTERNAL_PORT: ${INTERNAL_PORT}
       EXTERNAL_PORT: ${EXTERNAL_PORT}
       DIALECT: ${DIALECT}
 
