@@ -89,7 +89,8 @@ class SqlDialect:
         with open(config.ORDER_FILE) as f:
             order_data = json.load(f)
 
-        order:list[dict] = order_data["project"] if isinstance(order_data, dict) else order_data
+        logger.debug(f"Loaded order file: {order_data}")
+        order:list[dict] = order_data["project"]
 
         for obj in order:
             obj_db = obj['database']
@@ -131,6 +132,7 @@ class SqlDialect:
 
     @classmethod
     def create_object(cls, obj:DatabaseObject):
+        logger.info(f"Creating {obj.type} {obj.database}.{obj.schema}.{obj.name} from {obj.script_path}")
         try:
             with cls.get_connection(database=obj.database) as conn:
                 conn:sqlalchemy.engine.Connection
