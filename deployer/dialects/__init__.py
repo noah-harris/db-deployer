@@ -581,13 +581,15 @@ class SqlDialect:
             for entry in post_init_order:
                 file_name:str = entry["file"]
                 file_path:Path = post_init_dir / file_name
+                
+
                 if file_name.endswith(".sql"):
-                    logger.info(f"Running post-init script: {file_name}")
+                    logger.info(f"Running post-init SQL script: {file_path}")
                     with cls.get_connection(database=entry["database"]) as conn:
                         conn.execute(sqlalchemy.text(file_path.read_text(encoding="utf-8")))
                         conn.commit()
                 elif file_name.endswith(".py"):
-                    logger.info(f"Running post-init Python: {file_name}")
+                    logger.info(f"Running post-init Python script: {file_path}")
                     subprocess.run(
                         [sys.executable, str(file_path)],
                         cwd=post_init_dir,
