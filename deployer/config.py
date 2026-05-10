@@ -17,9 +17,9 @@ def make_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 # ==================== CREDENTIALS ====================
-PASSWORD = os.getenv("PASSWORD")
+DB_USERNAME = os.getenv("DB_USERNAME")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 EXTERNAL_PORT = os.getenv("EXTERNAL_PORT")
-HOSTNAME = os.getenv("HOST_MACHINE_NAME") or "localhost"
 TIMESTAMP = pd.Timestamp.now().strftime("%Y-%m-%d %H.%M.%S")
 
 RESTORE_POINTS_DIR = Path("/app/restore/")

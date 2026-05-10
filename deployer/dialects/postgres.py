@@ -7,7 +7,7 @@ class Postgres(SqlDialect):
     DIALECT_NAME = 'postgresql'
     PYTHON_DRIVER = 'psycopg2'
     USERNAME='postgres'
-    PASSWORD=config.PASSWORD
+    PASSWORD=config.DB_PASSWORD
     HOST='db'
     PORT=5432
     MASTER_DATABASE='postgres'

@@ -10,7 +10,7 @@ class MicrosoftSQLServer(SqlDialect):
     DIALECT_NAME = 'mssql'
     PYTHON_DRIVER = 'pyodbc'
     USERNAME='sa'
-    PASSWORD=config.PASSWORD
+    PASSWORD=config.DB_PASSWORD
     HOST='db'
     PORT=1433
     MASTER_DATABASE='master'
