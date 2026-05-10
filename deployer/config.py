@@ -19,7 +19,11 @@ def make_logger(name: str) -> logging.Logger:
 # ==================== CREDENTIALS ====================
 DB_USERNAME = os.getenv("DB_USERNAME")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
+INTERNAL_PORT = os.getenv("INTERNAL_PORT")
 EXTERNAL_PORT = os.getenv("EXTERNAL_PORT")
+DIALECT = os.getenv("DIALECT")
+HOST = os.getenv("HOST")
+
 TIMESTAMP = pd.Timestamp.now().strftime("%Y-%m-%d %H.%M.%S")
 
 RESTORE_POINTS_DIR = Path("/app/restore/")
@@ -29,7 +33,7 @@ SQL_SCRIPTS_DIR = Path("/app/sql-scripts/")
 SQL_SCRIPTS_DIR.mkdir(exist_ok=True, parents=True)
 
 SUPPORTED_DIALECTS = ["mssql", "postgres"]
-DIALECT = os.getenv("DIALECT")
+
 
 ORDER_FILE = SQL_SCRIPTS_DIR / 'order.json'
 STATUS_FILE = SQL_SCRIPTS_DIR / 'status.json'

@@ -4,12 +4,12 @@ from deployer import config
 from deployer.dialects import SqlDialect
 
 class Postgres(SqlDialect):
-    DIALECT_NAME = 'postgresql'
+    # DIALECT_NAME = 'postgresql'
     PYTHON_DRIVER = 'psycopg2'
-    USERNAME='postgres'
-    PASSWORD=config.DB_PASSWORD
-    HOST='db'
-    PORT=5432
+    # USERNAME='postgres'
+    # PASSWORD=config.DB_PASSWORD
+    # HOST='db'
+    # PORT=5432
     MASTER_DATABASE='postgres'
     CONNECTION_PARAMS = {}
 

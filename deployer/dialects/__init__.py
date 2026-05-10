@@ -21,12 +21,12 @@ from deployer import config
 logger = config.make_logger("deployer.dialects")
 
 class SqlDialect:
-    DIALECT_NAME:str=''
+    DIALECT_NAME:str=config.DIALECT
     PYTHON_DRIVER:str=''
-    USERNAME:str=''
-    PASSWORD:str=''
-    HOST:str=''
-    PORT:int=0
+    USERNAME:str=config.DB_USERNAME
+    PASSWORD:str=config.DB_PASSWORD
+    HOST:str=config.HOST
+    PORT:int=config.INTERNAL_PORT
     MASTER_DATABASE:str=''
     CONNECTION_PARAMS:dict = {}
 
@@ -53,6 +53,7 @@ class SqlDialect:
     @classmethod
     def _get_connection_string(cls, database:str) -> str:
         base = f"{cls.DIALECT_NAME}+{cls.PYTHON_DRIVER}://{cls.USERNAME}:{cls.PASSWORD}@{cls.HOST},{cls.PORT}/{database}"
+        logger.debug(f"Constructed connection string: {base} with params {cls.CONNECTION_PARAMS}")
         if cls.CONNECTION_PARAMS != {}:
             param_str = "&".join([f"{k}={v}" for k, v in cls.CONNECTION_PARAMS.items()])
             return f"{base}?{param_str}"
@@ -581,12 +582,11 @@ class SqlDialect:
             for entry in post_init_order:
                 file_name:str = entry["file"]
                 file_path:Path = post_init_dir / file_name
-                
-
                 if file_name.endswith(".sql"):
                     logger.info(f"Running post-init SQL script: {file_path}")
+                    query = file_path.read_text(encoding="utf-8")   
                     with cls.get_connection(database=entry["database"]) as conn:
-                        conn.execute(sqlalchemy.text(file_path.read_text(encoding="utf-8")))
+                        conn.execute(sqlalchemy.text(query))
                         conn.commit()
                 elif file_name.endswith(".py"):
                     logger.info(f"Running post-init Python script: {file_path}")
