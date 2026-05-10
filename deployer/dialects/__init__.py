@@ -87,9 +87,11 @@ class SqlDialect:
         objs = []
 
         with open(config.ORDER_FILE) as f:
+            logger.info(f)
+            logger.info(f"Reading order file from {config.ORDER_FILE}")
             order_data = json.load(f)
 
-        logger.debug(f"Loaded order file: {order_data}")
+        logger.info(f"Loaded order file: {order_data}")
         order:list[dict] = order_data["project"]
 
         for obj in order:
