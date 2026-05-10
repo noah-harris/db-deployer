@@ -575,13 +575,10 @@ class SqlDialect:
     def _run_post_init_scripts(cls):
         order_data = cls._get_order_json()
         post_init_order = order_data['post-init']
-
         dbs = cls._get_databases_to_create()
         for db in dbs:
             post_init_dir = config.SQL_SCRIPTS_DIR / db / "post-init"
-
-
-            for entry in order_data.get("post-init", []):
+            for entry in post_init_order:
                 file_name:str = entry["file"]
                 file_path:Path = post_init_dir / file_name
                 if file_name.endswith(".sql"):
