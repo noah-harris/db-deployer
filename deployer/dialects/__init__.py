@@ -57,6 +57,15 @@ class SqlDialect:
             param_str = "&".join([f"{k}={v}" for k, v in cls.CONNECTION_PARAMS.items()])
             return f"{base}?{param_str}"
         return base
+    
+
+    @classmethod
+    def _get_order_json(cls) -> dict:
+        with open(config.ORDER_FILE) as f:
+            logger.debug(f)
+            logger.debug(f"Reading order file from {config.ORDER_FILE}")
+            order_data = json.load(f)
+        return order_data
 
 
     @classmethod
@@ -86,12 +95,7 @@ class SqlDialect:
     def _get_objects_to_create(cls) -> list[DatabaseObject]:
         objs = []
 
-        with open(config.ORDER_FILE) as f:
-            logger.info(f)
-            logger.info(f"Reading order file from {config.ORDER_FILE}")
-            order_data = json.load(f)
-
-        logger.info(f"Loaded order file: {order_data}")
+        order_data = cls._get_order_json()
         order:list[dict] = order_data["project"]
 
         for obj in order:
@@ -569,30 +573,30 @@ class SqlDialect:
 
     @classmethod
     def _run_post_init_scripts(cls):
-        with open(config.ORDER_FILE) as f:
-            order_data = json.load(f)
+        order_data = cls._get_order_json()
+        post_init_order = order_data['post-init']
 
-        if not isinstance(order_data, dict):
-            return
+        dbs = cls._get_databases_to_create()
+        for db in dbs:
+            post_init_dir = config.SQL_SCRIPTS_DIR / db / "post-init"
 
-        post_init_dir = config.SQL_SCRIPTS_DIR / "post-init"
 
-        for entry in order_data.get("post-init", []):
-            file_name = entry["file"]
-            file_path = post_init_dir / file_name
-            if file_name.endswith(".sql"):
-                logger.info(f"Running post-init script: {file_name}")
-                with cls.get_connection(database=entry["database"]) as conn:
-                    conn.execute(sqlalchemy.text(file_path.read_text(encoding="utf-8")))
-                    conn.commit()
-            elif file_name.endswith(".py"):
-                logger.info(f"Running post-init Python: {file_name}")
-                subprocess.run(
-                    [sys.executable, str(file_path)],
-                    cwd=post_init_dir,
-                    check=True,
-                    env={**os.environ, "PYTHONPATH": str(post_init_dir)},
-                )
+            for entry in order_data.get("post-init", []):
+                file_name:str = entry["file"]
+                file_path:Path = post_init_dir / file_name
+                if file_name.endswith(".sql"):
+                    logger.info(f"Running post-init script: {file_name}")
+                    with cls.get_connection(database=entry["database"]) as conn:
+                        conn.execute(sqlalchemy.text(file_path.read_text(encoding="utf-8")))
+                        conn.commit()
+                elif file_name.endswith(".py"):
+                    logger.info(f"Running post-init Python: {file_name}")
+                    subprocess.run(
+                        [sys.executable, str(file_path)],
+                        cwd=post_init_dir,
+                        check=True,
+                        env={**os.environ, "PYTHONPATH": str(post_init_dir)},
+                    )
 
     @classmethod
     def init_database(cls):
