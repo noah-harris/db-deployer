@@ -35,7 +35,7 @@ class SqlDialect:
     RESTORE_POINT = config.RESTORE_POINTS_DIR / config.TIMESTAMP
 
     @classmethod
-    def _latest_restore_point(cls) -> Path:
+    def _latest_restore_point(cls) -> Path | None:
         dirs = sorted(
             (d for d in config.RESTORE_POINTS_DIR.iterdir() if d.is_dir()),
             key=lambda d: d.name,
@@ -45,7 +45,6 @@ class SqlDialect:
             return dirs[0]
         
         if not dirs:
-            logger.warning(f"No restore points found in {config.RESTORE_POINTS_DIR}")
             return
         
         
@@ -62,7 +61,6 @@ class SqlDialect:
     @classmethod
     def _get_order_json(cls) -> dict:
         with open(config.ORDER_FILE) as f:
-            logger.debug(f"Reading order file from {config.ORDER_FILE}")
             order_data = json.load(f)
         return order_data
 
@@ -610,14 +608,19 @@ class SqlDialect:
         for obj in objs:
             cls.create_object(obj)
 
-        for db in dbs:
-            tables = cls._get_tables(db)
-            for table in tables:
-                cls.read_csv_to_sql(table)
+        if cls._latest_restore_point():
+            for db in dbs:
+                tables = cls._get_tables(db)
+                for table in tables:
+                    cls.read_csv_to_sql(table)
+        else:
+            logger.warning(f"No restore point found; skipping CSV import for all tables.")
 
         cls._run_post_init_scripts()
 
         config.STATUS_FILE.write_text(json.dumps({"status": "ready"}, indent=2))
+
+        logger.info("Database initialization complete")
 
         
 
