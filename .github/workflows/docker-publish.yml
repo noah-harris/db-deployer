@@ -28,5 +28,4 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/db-deployer-initializer:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
