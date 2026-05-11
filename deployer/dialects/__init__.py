@@ -16,7 +16,7 @@ from typing import Any
 from .column_schema import ColumnSchema
 from .datatype_mapping import *
 from .database_object import DatabaseObject
-from deployer import config
+import config
 
 logger = config.make_logger("deployer.dialects")
 
@@ -223,6 +223,15 @@ class SqlDialect:
     @classmethod
     def _get_object_identifier(cls, obj:DatabaseObject) -> str:
         return f"{cls._quote_identifier(obj.schema)}.{cls._quote_identifier(obj.name)}"
+
+
+    @classmethod
+    def _disable_triggers(cls, table: DatabaseObject):
+        pass
+
+    @classmethod
+    def _enable_triggers(cls, table: DatabaseObject):
+        pass
 
 
     @classmethod
@@ -561,10 +570,19 @@ class SqlDialect:
                 df[col.name] = pd.array(vals, dtype="boolean")
             # object stays object — Decimals, bytes, datetimes, strings live here.
 
-        with cls.get_connection(database=table.database) as conn:
-            conn:sqlalchemy.engine.Connection
-            df.to_sql(name=table.name, con=conn, schema=table.schema, if_exists="append", index=False)
-            conn.commit()
+        # Chunk size respects SQL Server's 2100-parameter limit per statement.
+        chunksize = max(1, 2000 // len(cols)) if cols else 1000
+
+        cls._disable_triggers(table)
+        try:
+            with cls.get_connection(database=table.database) as conn:
+                conn:sqlalchemy.engine.Connection
+                df.to_sql(name=table.name, con=conn, schema=table.schema, if_exists="append", index=False, method='multi', chunksize=chunksize)
+                conn.commit()
+        finally:
+            cls._enable_triggers(table)
+
+        logger.info(f"Imported data for {table.database}.{table.schema}.{table.name} with {len(df)} rows.")
     
 
     @classmethod
@@ -597,40 +615,65 @@ class SqlDialect:
         """
             Deploys database objects
         """
-        # delete status file if it exists from a previous run
         config.STATUS_FILE.write_text(json.dumps({"status": "not ready"}, indent=2))
+        failures: list[str] = []
 
         dbs = cls._get_databases_to_create()
         for db in dbs:
-            cls.create_database(db)
+            try:
+                cls.create_database(db)
+            except Exception as e:
+                logger.error(f"Failed to create database {db}: {e}")
+                failures.append(f"create_database({db})")
 
         objs = cls._get_objects_to_create()
         for obj in objs:
-            cls.create_object(obj)
+            try:
+                cls.create_object(obj)
+            except Exception as e:
+                logger.error(f"Failed to create {obj.type} {obj.database}.{obj.schema}.{obj.name}: {e}")
+                failures.append(f"create_object({obj.database}.{obj.schema}.{obj.name})")
 
         if cls._latest_restore_point():
             for db in dbs:
                 tables = cls._get_tables(db)
                 for table in tables:
-                    cls.read_csv_to_sql(table)
+                    try:
+                        cls.read_csv_to_sql(table)
+                    except Exception as e:
+                        logger.error(f"Failed to import {table.database}.{table.schema}.{table.name}: {e}")
+                        failures.append(f"read_csv_to_sql({table.database}.{table.schema}.{table.name})")
         else:
-            logger.warning(f"No restore point found; skipping CSV import for all tables.")
+            logger.warning("No restore point found; skipping CSV import for all tables.")
 
-        cls._run_post_init_scripts()
+        try:
+            cls._run_post_init_scripts()
+        except Exception as e:
+            logger.error(f"Post-init scripts failed: {e}")
+            failures.append("post_init_scripts")
 
-        config.STATUS_FILE.write_text(json.dumps({"status": "ready"}, indent=2))
-
-        logger.info("Database initialization complete")
+        if failures:
+            logger.warning(f"Database initialization completed with {len(failures)} failure(s): {failures}")
+        else:
+            config.STATUS_FILE.write_text(json.dumps({"status": "ready"}, indent=2))
+            logger.info("Database initialization complete")
 
         
 
     @classmethod
     def create_restore_point(cls):
         dbs = cls._get_databases_to_create()
+        failures: list[str] = []
         for db in dbs:
             tables = cls._get_tables(db)
             for table in tables:
-                cls.export_table_to_csv(table)
+                try:
+                    cls.export_table_to_csv(table)
+                except Exception as e:
+                    logger.error(f"Failed to export {table.database}.{table.schema}.{table.name}: {e}")
+                    failures.append(f"{table.database}.{table.schema}.{table.name}")
+        if failures:
+            logger.warning(f"Restore point created with {len(failures)} failure(s): {failures}")
 
                 
 

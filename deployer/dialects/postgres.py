@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import sqlalchemy
-from deployer import config
-from deployer.dialects import SqlDialect
+from . import SqlDialect
+from .database_object import DatabaseObject
 
 class Postgres(SqlDialect):
     # DIALECT_NAME = 'postgresql'
@@ -40,7 +40,19 @@ class Postgres(SqlDialect):
             conn.commit()
             conn.close()
             engine.dispose()
-        return 
+        return
+
+    @classmethod
+    @contextmanager
+    def _get_autocommit_connection(cls, database: str):
+        cxnstr: str = cls._get_connection_string(database)
+        engine: sqlalchemy.engine.Engine = sqlalchemy.create_engine(cxnstr, pool_pre_ping=True)
+        conn: sqlalchemy.engine.Connection = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+        try:
+            yield conn
+        finally:
+            conn.close()
+            engine.dispose() 
 
 
     def create_database(self, database:str):
@@ -60,3 +72,13 @@ class Postgres(SqlDialect):
     @classmethod
     def _cast_float(cls, column:str):
         return f"CONVERT(varchar(50), {cls._quote_identifier(column)}, 3) AS {cls._quote_identifier(column)}"
+
+    @classmethod
+    def _disable_triggers(cls, table: DatabaseObject):
+        with cls._get_autocommit_connection(database=table.database) as conn:
+            conn.execute(sqlalchemy.text(f"ALTER TABLE {cls._get_object_identifier(table)} DISABLE TRIGGER ALL"))
+
+    @classmethod
+    def _enable_triggers(cls, table: DatabaseObject):
+        with cls._get_autocommit_connection(database=table.database) as conn:
+            conn.execute(sqlalchemy.text(f"ALTER TABLE {cls._get_object_identifier(table)} ENABLE TRIGGER ALL"))
