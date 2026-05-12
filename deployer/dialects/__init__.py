@@ -52,6 +52,12 @@ class SqlDialect:
     @classmethod
     def _get_connection_string(cls, database:str) -> str:
         base = f"{cls.DIALECT_NAME}+{cls.PYTHON_DRIVER}://{cls.USERNAME}:{cls.PASSWORD}@{cls.HOST},{cls.PORT}/{database}"
+        if cls.PASSWORD is None:
+            redacted_password = None
+        else:
+            redacted_password = "*" * len(cls.PASSWORD)
+        base_redacted = f"{cls.DIALECT_NAME}+{cls.PYTHON_DRIVER}://{cls.USERNAME}:{redacted_password}@{cls.HOST},{cls.PORT}/{database}"
+        logger.debug(f"CONNECTION_STRING={base_redacted} with params")
         if cls.CONNECTION_PARAMS != {}:
             param_str = "&".join([f"{k}={v}" for k, v in cls.CONNECTION_PARAMS.items()])
             return f"{base}?{param_str}"
