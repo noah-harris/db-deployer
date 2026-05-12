@@ -481,6 +481,8 @@ class SqlDialect:
             for row in df.itertuples(index=False, name=None):
                 cells = [cls._serialize_cell(v, col) for v, col in zip(row, cols)]
                 f.write(",".join(cls._emit_field(cell) for cell in cells) + "\r\n")
+            f.flush()
+            os.fsync(f.fileno())
 
 
     @classmethod
@@ -668,10 +670,20 @@ class SqlDialect:
 
     @classmethod
     def create_restore_point(cls):
-        dbs = cls._get_databases_to_create()
+        logger.info("Starting restore point creation...")
+        try:
+            dbs = cls._get_databases_to_create()
+        except Exception as e:
+            logger.error(f"Failed to retrieve database list for restore point: {e}")
+            return
         failures: list[str] = []
         for db in dbs:
-            tables = cls._get_tables(db)
+            try:
+                tables = cls._get_tables(db)
+            except Exception as e:
+                logger.error(f"Failed to retrieve tables for database {db}: {e}")
+                failures.append(db)
+                continue
             for table in tables:
                 try:
                     cls.export_table_to_csv(table)
@@ -680,6 +692,8 @@ class SqlDialect:
                     failures.append(f"{table.database}.{table.schema}.{table.name}")
         if failures:
             logger.warning(f"Restore point created with {len(failures)} failure(s): {failures}")
+        else:
+            logger.info("Restore point creation complete.")
 
                 
 
