@@ -19,13 +19,6 @@ class Postgres(SqlDialect):
         "trigger"
     ]
 
-    @classmethod
-    def _get_connection_string(cls, database: str) -> str:
-        base = f"{cls.DIALECT_NAME}+{cls.PYTHON_DRIVER}://{cls.USERNAME}:{cls.PASSWORD}@{cls.HOST}:{cls.PORT}/{database}"
-        if cls.CONNECTION_PARAMS:
-            param_str = "&".join(f"{k}={v}" for k, v in cls.CONNECTION_PARAMS.items())
-            return f"{base}?{param_str}"
-        return base
 
     @classmethod
     @contextmanager
@@ -44,6 +37,7 @@ class Postgres(SqlDialect):
             conn.close()
             engine.dispose()
         return
+
 
     @classmethod
     @contextmanager
