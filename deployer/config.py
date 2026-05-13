@@ -2,7 +2,6 @@ import colorlog
 import logging
 import os
 from pathlib import Path
-import pandas as pd
 
 def make_logger(name: str) -> logging.Logger:
     root = logging.getLogger()
@@ -24,7 +23,8 @@ EXTERNAL_PORT = os.getenv("EXTERNAL_PORT")
 DIALECT = os.getenv("DIALECT")
 HOST = os.getenv("HOST")
 
-TIMESTAMP = pd.Timestamp.now().strftime("%Y-%m-%d %H.%M.%S")
+BACKUP_INTERVAL_MINUTES = int(os.getenv("BACKUP_INTERVAL_MINUTES", 60))
+BACKUP_RETENTION = int(os.getenv("BACKUP_RETENTION", 0))
 
 RESTORE_POINTS_DIR = Path("/app/restore/")
 RESTORE_POINTS_DIR.mkdir(exist_ok=True, parents=True)

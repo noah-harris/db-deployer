@@ -7,6 +7,7 @@ import json
 import pandas as pd
 import csv
 import os
+import shutil
 import subprocess
 import sys
 
@@ -31,8 +32,6 @@ class SqlDialect:
     CONNECTION_PARAMS:dict = {}
 
     VALID_OBJECT_TYPES:list[str] = []
-
-    RESTORE_POINT = config.RESTORE_POINTS_DIR / config.TIMESTAMP
 
     @classmethod
     def _latest_restore_point(cls) -> Path | None:
@@ -443,7 +442,7 @@ class SqlDialect:
         return rows
 
     @classmethod
-    def export_table_to_csv(cls, table: DatabaseObject):
+    def export_table_to_csv(cls, table: DatabaseObject, restore_point_path: Path):
         """
         Read a table from the DB and write it to a CSV file.
 
@@ -474,7 +473,7 @@ class SqlDialect:
         # We write manually because csv.QUOTE_NONNUMERIC quotes None as "",
         # which would collide with our convention (empty string is "", NULL is unquoted empty).
         # Encoding is UTF-16 LE with BOM ("utf-16") for Windows/SQL Server compatibility.
-        csv_path = cls.RESTORE_POINT / table.database / f"{table.schema}.{table.name}.csv"
+        csv_path = restore_point_path / table.database / f"{table.schema}.{table.name}.csv"
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         with open(csv_path, "w", encoding="utf-16", newline="") as f:
             f.write(",".join(cls._quote_field(c.name) for c in cols) + "\r\n")
@@ -667,19 +666,49 @@ class SqlDialect:
         
 
     @classmethod
+    def _prune_restore_points(cls):
+        if config.BACKUP_RETENTION == 0:
+            return
+        dirs = sorted(
+            (d for d in config.RESTORE_POINTS_DIR.iterdir() if d.is_dir()),
+            key=lambda d: d.name,
+            reverse=True,
+        )
+        for old_dir in dirs[config.BACKUP_RETENTION:]:
+            shutil.rmtree(old_dir)
+            logger.info(f"Pruned old backup: {old_dir.name}")
+
+    @classmethod
     def create_restore_point(cls):
-        dbs = cls._get_databases_to_create()
+        timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H.%M.%S")
+        restore_point_path = config.RESTORE_POINTS_DIR / timestamp
+        logger.info(f"Starting backup: {timestamp}")
+        try:
+            dbs = cls._get_databases_to_create()
+        except Exception as e:
+            logger.error(f"Failed to retrieve database list for backup: {e}")
+            return
         failures: list[str] = []
         for db in dbs:
-            tables = cls._get_tables(db)
+            try:
+                tables = cls._get_tables(db)
+            except Exception as e:
+                logger.error(f"Failed to retrieve tables for database {db}: {e}")
+                failures.append(db)
+                continue
             for table in tables:
+                logger.info(f"Exporting {table.database}.{table.schema}.{table.name}...")
                 try:
-                    cls.export_table_to_csv(table)
+                    cls.export_table_to_csv(table, restore_point_path)
+                    logger.info(f"Exported {table.database}.{table.schema}.{table.name}")
                 except Exception as e:
                     logger.error(f"Failed to export {table.database}.{table.schema}.{table.name}: {e}")
                     failures.append(f"{table.database}.{table.schema}.{table.name}")
         if failures:
-            logger.warning(f"Restore point created with {len(failures)} failure(s): {failures}")
+            logger.warning(f"Backup created with {len(failures)} failure(s): {failures}")
+        else:
+            logger.info("Backup complete.")
+        cls._prune_restore_points()
 
                 
 
