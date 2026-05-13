@@ -3,3 +3,4 @@ pandas
 colorlog
 dotenv
 pyodbc
+psycopg2-binary
