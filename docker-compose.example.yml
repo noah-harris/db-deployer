@@ -1,10 +1,11 @@
 services:
   initializer:
-    container_name: initializer # Name of the initializer container
+    container_name: initializer
+    stop_grace_period: 5m
     build:
-      context: . 
+      context: .
     depends_on:
-      db: # Database service must be healthy before starting the initializer
+      db:
         condition: service_healthy
     environment:
       DB_USERNAME: ${DB_USERNAME}
@@ -22,4 +23,15 @@ services:
 
 volumes:
   restore:
+    driver: local
+    driver_opts:
+      type: ${TYPE}
+      device: "${RESTORE_POINT_DIRECTORY}"
+      o: ${O}
+
   sql-scripts:
+    driver: local
+    driver_opts:
+      type: ${TYPE}
+      device: "${SQL_PROJECT_DIRECTORY}"
+      o: ${O}
