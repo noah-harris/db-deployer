@@ -4,12 +4,8 @@ from . import SqlDialect
 from .database_object import DatabaseObject
 
 class Postgres(SqlDialect):
-    # DIALECT_NAME = 'postgresql'
+    DIALECT_NAME = 'postgresql'
     PYTHON_DRIVER = 'psycopg2'
-    # USERNAME='postgres'
-    # PASSWORD=config.DB_PASSWORD
-    # HOST='db'
-    # PORT=5432
     MASTER_DATABASE='postgres'
     CONNECTION_PARAMS = {}
 
@@ -23,6 +19,14 @@ class Postgres(SqlDialect):
         "table_valued_function", 
         "trigger"
     ]
+
+    @classmethod
+    def _get_connection_string(cls, database: str) -> str:
+        base = f"{cls.DIALECT_NAME}+{cls.PYTHON_DRIVER}://{cls.USERNAME}:{cls.PASSWORD}@{cls.HOST}:{cls.PORT}/{database}"
+        if cls.CONNECTION_PARAMS:
+            param_str = "&".join(f"{k}={v}" for k, v in cls.CONNECTION_PARAMS.items())
+            return f"{base}?{param_str}"
+        return base
 
     @classmethod
     @contextmanager
@@ -55,8 +59,10 @@ class Postgres(SqlDialect):
             engine.dispose() 
 
 
-    def create_database(self, database:str):
-        pass
+    @classmethod
+    def create_database(cls, database: str):
+        with cls._get_autocommit_connection(database=cls.MASTER_DATABASE) as conn:
+            conn.execute(sqlalchemy.text(f"CREATE DATABASE {cls._quote_identifier(database)}"))
 
 
     @classmethod
@@ -65,13 +71,12 @@ class Postgres(SqlDialect):
     
 
     @classmethod
-    def _cast_decimal(cls, column:str):
-        return f"CONVERT(varchar(50), {cls._quote_identifier(column)}) AS {cls._quote_identifier(column)}"
-    
+    def _cast_decimal(cls, column: str) -> str:
+        return f"CAST({cls._quote_identifier(column)} AS VARCHAR(50)) AS {cls._quote_identifier(column)}"
 
     @classmethod
-    def _cast_float(cls, column:str):
-        return f"CONVERT(varchar(50), {cls._quote_identifier(column)}, 3) AS {cls._quote_identifier(column)}"
+    def _cast_float(cls, column: str) -> str:
+        return f"CAST({cls._quote_identifier(column)} AS VARCHAR) AS {cls._quote_identifier(column)}"
 
     @classmethod
     def _disable_triggers(cls, table: DatabaseObject):
