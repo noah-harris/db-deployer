@@ -1,4 +1,19 @@
 services:
+  db:
+    container_name: db
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "${DB_PASSWORD}"
+    ports:
+      - "${EXTERNAL_PORT}:${INTERNAL_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$SA_PASSWORD\" -Q \"SELECT 1\" -b -No"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   initializer:
     container_name: initializer
     stop_grace_period: 5m
@@ -16,7 +31,7 @@ services:
       DIALECT: ${DIALECT}
       RESTORE_POINT_INTERVAL_MINUTES: ${RESTORE_POINT_INTERVAL_MINUTES}
       RESTORE_POINT_RETENTION: ${RESTORE_POINT_RETENTION}
-
+      
     volumes:
       - restore:/app/restore
       - sql-scripts:/app/sql-scripts

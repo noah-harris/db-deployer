@@ -1,4 +1,19 @@
 services:
+  db:
+    container_name: db
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "${EXTERNAL_PORT}:${INTERNAL_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d postgres -h ${HOST} -p ${INTERNAL_PORT}"]
+      interval: 5s
+      retries: 5
+
   initializer:
     container_name: initializer
     stop_grace_period: 5m
@@ -16,7 +31,7 @@ services:
       DIALECT: ${DIALECT}
       RESTORE_POINT_INTERVAL_MINUTES: ${RESTORE_POINT_INTERVAL_MINUTES}
       RESTORE_POINT_RETENTION: ${RESTORE_POINT_RETENTION}
-
+      
     volumes:
       - restore:/app/restore
       - sql-scripts:/app/sql-scripts

@@ -20,7 +20,7 @@ def teardown(signum, frame):
 
 
 def backup_loop():
-    interval = BACKUP_INTERVAL_MINUTES * 60
+    interval = RESTORE_POINT_INTERVAL_MINUTES * 60
     while not stop_event.wait(interval):
         dialect.create_restore_point()
 
@@ -30,9 +30,9 @@ signal.signal(signal.SIGINT, teardown)
 
 dialect.init_database()
 
-if BACKUP_INTERVAL_MINUTES > 0:
+if RESTORE_POINT_INTERVAL_MINUTES > 0:
     threading.Thread(target=backup_loop, daemon=True).start()
-    logger.info(f"Scheduled backups every {BACKUP_INTERVAL_MINUTES} minute(s), retention={BACKUP_RETENTION or 'unlimited'}")
+    logger.info(f"Scheduled restore points every {RESTORE_POINT_INTERVAL_MINUTES} minute(s), retention={RESTORE_POINT_RETENTION or 'unlimited'}")
 
 while True:
     signal.pause()

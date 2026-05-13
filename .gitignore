@@ -2,6 +2,7 @@
 docker-compose.yml
 docker-compose.postgres.yml
 docker-compose.mssql.yml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
