@@ -667,14 +667,14 @@ class SqlDialect:
 
     @classmethod
     def _prune_restore_points(cls):
-        if config.BACKUP_RETENTION == 0:
+        if config.RESTORE_POINT_RETENTION == 0:
             return
         dirs = sorted(
             (d for d in config.RESTORE_POINTS_DIR.iterdir() if d.is_dir()),
             key=lambda d: d.name,
             reverse=True,
         )
-        for old_dir in dirs[config.BACKUP_RETENTION:]:
+        for old_dir in dirs[config.RESTORE_POINT_RETENTION:]:
             shutil.rmtree(old_dir)
             logger.info(f"Pruned old backup: {old_dir.name}")
 
@@ -721,5 +721,5 @@ from .postgres import Postgres
 
 mapping = {
     "mssql": MicrosoftSQLServer,
-    "postgres": Postgres
+    "postgresql": Postgres
 }

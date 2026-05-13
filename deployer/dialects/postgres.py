@@ -4,7 +4,6 @@ from . import SqlDialect
 from .database_object import DatabaseObject
 
 class Postgres(SqlDialect):
-    DIALECT_NAME = 'postgresql'
     PYTHON_DRIVER = 'psycopg2'
     MASTER_DATABASE='postgres'
     CONNECTION_PARAMS = {}

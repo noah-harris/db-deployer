@@ -1,7 +1,7 @@
 .claude
 docker-compose.yml
-docker-compose.postgres.yml
-docker-compose.mssql.yml
+docker-compose.example.postgres.yml
+docker-compose.example.mssql.yml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
