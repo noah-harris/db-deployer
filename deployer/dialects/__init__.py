@@ -7,6 +7,7 @@ import json
 import pandas as pd
 import csv
 import os
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -263,7 +264,8 @@ class SqlDialect:
                 select_parts.append(cls._cast_float(col.name))
             else:
                 select_parts.append(cls._quote_identifier(col.name))
-        return f"SELECT {', '.join(select_parts)} FROM {cls._get_object_identifier(obj)}"
+        order_by = ', '.join(str(i) for i in range(1, len(select_parts) + 1))
+        return f"SELECT {', '.join(select_parts)} FROM {cls._get_object_identifier(obj)} ORDER BY {order_by}"
 
 
     @classmethod
@@ -670,7 +672,7 @@ class SqlDialect:
         if config.RESTORE_POINT_RETENTION == 0:
             return
         dirs = sorted(
-            (d for d in config.RESTORE_POINTS_DIR.iterdir() if d.is_dir()),
+            (d for d in config.RESTORE_POINTS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")),
             key=lambda d: d.name,
             reverse=True,
         )
@@ -679,9 +681,31 @@ class SqlDialect:
             logger.info(f"Pruned old backup: {old_dir.name}")
 
     @classmethod
+    def _data_changed(cls, temp_path: Path) -> bool:
+        committed = sorted(
+            (d for d in config.RESTORE_POINTS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")),
+            key=lambda d: d.name,
+            reverse=True,
+        )
+        if not committed:
+            return True
+        latest = committed[0]
+
+        def file_hash(path: Path) -> str:
+            h = hashlib.md5()
+            h.update(path.read_bytes())
+            return h.hexdigest()
+
+        temp_files = {f.relative_to(temp_path) for f in temp_path.rglob("*") if f.is_file()}
+        latest_files = {f.relative_to(latest) for f in latest.rglob("*") if f.is_file()}
+        if temp_files != latest_files:
+            return True
+        return any(file_hash(temp_path / rel) != file_hash(latest / rel) for rel in temp_files)
+
+    @classmethod
     def create_restore_point(cls):
         timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H.%M.%S")
-        restore_point_path = config.RESTORE_POINTS_DIR / timestamp
+        temp_path = config.RESTORE_POINTS_DIR / f".tmp_{timestamp}"
         logger.info(f"Starting backup: {timestamp}")
         try:
             dbs = cls._get_databases_to_create()
@@ -699,11 +723,17 @@ class SqlDialect:
             for table in tables:
                 logger.info(f"Exporting {table.database}.{table.schema}.{table.name}...")
                 try:
-                    cls.export_table_to_csv(table, restore_point_path)
+                    cls.export_table_to_csv(table, temp_path)
                     logger.info(f"Exported {table.database}.{table.schema}.{table.name}")
                 except Exception as e:
                     logger.error(f"Failed to export {table.database}.{table.schema}.{table.name}: {e}")
                     failures.append(f"{table.database}.{table.schema}.{table.name}")
+        if not cls._data_changed(temp_path):
+            shutil.rmtree(temp_path)
+            logger.info("No data changes detected — skipping restore point")
+            return
+        final_path = config.RESTORE_POINTS_DIR / timestamp
+        temp_path.rename(final_path)
         if failures:
             logger.warning(f"Backup created with {len(failures)} failure(s): {failures}")
         else:
