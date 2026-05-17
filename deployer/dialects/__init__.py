@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from functools import cached_property
 from pathlib import Path
 import sqlalchemy
 import json
@@ -33,6 +34,8 @@ class SqlDialect:
     CONNECTION_PARAMS:dict = {}
 
     VALID_OBJECT_TYPES:list[str] = []
+    
+    DATABASE_OBJECTS = {}
 
     @classmethod
     def _latest_restore_point(cls) -> Path | None:
@@ -48,7 +51,6 @@ class SqlDialect:
             return
         
         
-
     @classmethod
     def _get_connection_string(cls, database:str) -> str:
         base = f"{cls.DIALECT_NAME}+{cls.PYTHON_DRIVER}://{cls.USERNAME}:{cls.PASSWORD}@{cls.HOST},{cls.PORT}/{database}"
@@ -63,13 +65,6 @@ class SqlDialect:
             return f"{base}?{param_str}"
         return base
     
-
-    @classmethod
-    def _get_order_json(cls) -> dict:
-        with open(config.ORDER_FILE) as f:
-            order_data = json.load(f)
-        return order_data
-
 
     @classmethod
     @contextmanager
@@ -92,51 +87,6 @@ class SqlDialect:
     def create_database(cls, database):
         raise NotImplementedError("Subclasses must implement this method")
     
-    
-    ########## Object ##########
-    @classmethod
-    def _get_objects_to_create(cls) -> list[DatabaseObject]:
-        objs = []
-        order_data = cls._get_order_json()
-        order:list[dict] = order_data["project"]
-
-        for obj in order:
-            obj_db = obj['database']
-            obj_schema = obj.get('schema')
-            obj_type = obj['type']
-            obj_name = obj['name'] # Includes Schema schema.name
-
-            schema_string = '' if obj_type == 'schema' else f"{obj_schema}."
-
-            if obj_type not in cls.VALID_OBJECT_TYPES:
-                raise ValueError(f"Invalid object type '{obj_type}' for {schema_string}{obj_name}. Must be one of {cls.VALID_OBJECT_TYPES}.")
-            
-            obj_script_path:Path = config.SQL_SCRIPTS_DIR / obj_db / obj_type / f"{schema_string}{obj_name}.sql"
-
-            if not obj_script_path.exists():
-                raise FileNotFoundError(f"SQL file for {obj_type} {obj_db}.{schema_string}{obj_name} not found @ Path={obj_script_path}")
-            
-            raw = obj_script_path.read_bytes()
-            if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
-                enc = "utf-16"
-            elif raw[:3] == b"\xef\xbb\xbf":
-                enc = "utf-8-sig"
-            else:
-                enc = "utf-8"
-            with open(obj_script_path, "r", encoding=enc) as f:
-                obj_definition = f.read()
-
-            objs.append(DatabaseObject(
-                database=obj_db,
-                schema=obj_schema,
-                name=obj_name,
-                type=obj_type,
-                script_path=obj_script_path,
-                definition=obj_definition
-            ))
-
-        return objs
-    
 
     @classmethod
     def create_object(cls, obj:DatabaseObject):
@@ -153,7 +103,7 @@ class SqlDialect:
     @classmethod
     def _get_tables(cls, database:str) -> list[DatabaseObject]:
         tables = []
-        for obj in cls._get_objects_to_create():
+        for obj in cls._get_project_load_order():
             if obj.database == database and obj.type == "table":
                 tables.append(obj)
         return tables
@@ -192,6 +142,7 @@ class SqlDialect:
             for r in rows
         ]
     
+
     @staticmethod
     def _pandas_dtype_for(col: ColumnSchema) -> Any:
         """
@@ -215,6 +166,7 @@ class SqlDialect:
         # Dates and strings: leave as object for now; we handle conversion explicitly.
         return "object"
 
+
     @staticmethod
     def _quote_field(s: str) -> str:
         """Always-quoted text field with proper escaping."""
@@ -234,6 +186,7 @@ class SqlDialect:
     @classmethod
     def _disable_triggers(cls, table: DatabaseObject):
         pass
+
 
     @classmethod
     def _enable_triggers(cls, table: DatabaseObject):
@@ -443,6 +396,7 @@ class SqlDialect:
             rows.append(cur_row)
         return rows
 
+
     @classmethod
     def export_table_to_csv(cls, table: DatabaseObject, restore_point_path: Path):
         """
@@ -594,7 +548,10 @@ class SqlDialect:
 
     @classmethod
     def _run_post_init_scripts(cls):
-        order_data = cls._get_order_json()
+
+        with open(config.ORDER_FILE) as f:
+            order_data = json.load(f)
+
         post_init_order = order_data['post-init']
         dbs = cls._get_databases_to_create()
         for db in dbs:
@@ -617,6 +574,7 @@ class SqlDialect:
                         env={**os.environ, "PYTHONPATH": str(post_init_dir)},
                     )
 
+
     @classmethod
     def init_database(cls):
         """
@@ -633,7 +591,7 @@ class SqlDialect:
                 logger.error(f"Failed to create database {db}: {e}")
                 failures.append(f"create_database({db})")
 
-        objs = cls._get_objects_to_create()
+        objs = cls._get_project_load_order()
         for obj in objs:
             try:
                 cls.create_object(obj)
@@ -665,7 +623,6 @@ class SqlDialect:
             config.STATUS_FILE.write_text(json.dumps({"status": "ready"}, indent=2))
             logger.info("Database initialization complete")
 
-        
 
     @classmethod
     def _prune_restore_points(cls):
@@ -679,6 +636,7 @@ class SqlDialect:
         for old_dir in dirs[config.RESTORE_POINT_RETENTION:]:
             shutil.rmtree(old_dir)
             logger.info(f"Pruned old backup: {old_dir.name}")
+
 
     @classmethod
     def _data_changed(cls, temp_path: Path) -> bool:
@@ -701,6 +659,7 @@ class SqlDialect:
         if temp_files != latest_files:
             return True
         return any(file_hash(temp_path / rel) != file_hash(latest / rel) for rel in temp_files)
+
 
     @classmethod
     def create_restore_point(cls):
@@ -740,7 +699,126 @@ class SqlDialect:
             logger.info("Backup complete.")
         cls._prune_restore_points()
 
-                
+
+    @classmethod
+    def resolve_load_order(cls):
+        cls._load_object_dependencies()
+        return cls._get_project_load_order()
+    
+    
+    @classmethod
+    def _load_object_mapping(cls) -> dict[str, type[DatabaseObject]]:
+        object_mapping:dict = {}
+        
+        for db in config.SQL_SCRIPTS_DIR.iterdir():
+            if not db.is_dir():
+                continue
+
+            for obj_type in db.iterdir():
+                if not obj_type.is_dir() or obj_type.name == 'post-init':
+                    continue
+
+                for obj in obj_type.iterdir():
+                    if not obj.is_file() or obj.suffix != '.sql':
+                        continue
+
+                    object_mapping[obj.stem] = DatabaseObject(script_path=obj)
+        cls._object_mapping = object_mapping
+        return cls._object_mapping
+    
+
+    _REF_TERMINATORS = (' ', '\n', '\t', '\r', ',', '(', ')', ';')
+
+    @classmethod
+    def _pattern_in(cls, pattern: str, definition: str) -> bool:
+        """Check if pattern appears in definition.
+        For patterns ending with a space (unbracketed names), also check other valid
+        SQL terminators so references at end-of-line or before punctuation are detected.
+        """
+        if not pattern.endswith(' '):
+            return pattern in definition
+        base = pattern[:-1]
+        return definition.endswith(base) or any(f"{base}{t}" in definition for t in cls._REF_TERMINATORS)
+
+    @classmethod
+    def _load_object_dependencies(cls):
+        """ Dependents are the objects that depend on the current object.  """
+        cls._load_object_mapping()
+
+        objects:list[DatabaseObject] = list(cls._object_mapping.values())
+
+        for obj in objects:
+
+            for other_obj in objects:
+
+                if other_obj == obj:
+                    continue
+
+                match obj.schema:
+                    case 'dbo':
+                        patterns = [f"{obj.schema}.{obj.name} ", f"{obj.name} ", f"[{obj.schema}].[{obj.name}]", f"[{obj.name}]"]
+                    case None:
+                        patterns = [f"{obj.name} ", f"[{obj.name}]"]
+                    case _:
+                        patterns = [f"{obj.schema}.{obj.name} ", f"[{obj.schema}].[{obj.name}]"]
+
+                for pattern in patterns:
+                    if cls._pattern_in(pattern, other_obj.definition):
+                        obj.add_dependent(other_obj)
+                        break
+
+                match other_obj.schema:
+                    case 'dbo':
+                        other_patterns = [f"{other_obj.schema}.{other_obj.name} ", f"{other_obj.name} ", f"[{other_obj.schema}].[{other_obj.name}]", f"[{other_obj.name}]"]
+                    case None:
+                        other_patterns = [f"{other_obj.name} ", f"[{other_obj.name}]"]
+                    case _:
+                        other_patterns = [f"{other_obj.schema}.{other_obj.name} ", f"[{other_obj.schema}].[{other_obj.name}]"]
+
+                for other_pattern in other_patterns:
+                    if cls._pattern_in(other_pattern, obj.definition):
+                        obj.add_dependency(other_obj)
+                        break
+
+        for obj in objects:
+            if obj.schema is not None:
+                schema_obj = cls._object_mapping.get(obj.schema)
+                if schema_obj is not None and schema_obj.type == 'schema':
+                    obj.add_dependency(schema_obj)
+
+
+    @classmethod
+    def _get_project_load_order(cls) -> list[DatabaseObject]:
+        # Algorithm is:
+        # For every node, starting at any arbitrary node in the global list of nodes:,
+        # if their dependencies are not in the order, push them to the end of the list
+        # ALLOWABLE INSERT LIST: THe list of all nodes that can be travelled too given the current start
+        # Given start of load order, which nodes are completed and insertable
+
+        cls._load_object_dependencies()
+        objects:list[DatabaseObject] = list(cls._object_mapping.values())
+        load_order:list[DatabaseObject] = []
+
+        def _get_insertable_nodes() -> list[DatabaseObject]:
+            insertable = []
+            for obj in objects:
+                if obj in load_order:
+                    continue
+                if all(dep in load_order for dep in obj.dependencies):
+                    insertable.append(obj)
+
+            return insertable
+        
+        
+        while len(load_order) < len(objects):
+            insertable = _get_insertable_nodes()
+            if not insertable:
+                stuck = [obj for obj in objects if obj not in load_order]
+                raise ValueError(f"Circular dependency detected — cannot determine load order for: {stuck}")
+            load_order.extend(insertable)
+
+        return load_order
+
 
     def __init__(self):
         pass
