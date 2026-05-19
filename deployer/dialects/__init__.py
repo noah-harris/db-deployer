@@ -557,22 +557,26 @@ class SqlDialect:
         for db in dbs:
             post_init_dir = config.SQL_SCRIPTS_DIR / db / "post-init"
             for entry in post_init_order:
-                file_name:str = entry["file"]
-                file_path:Path = post_init_dir / file_name
-                if file_name.endswith(".sql"):
-                    logger.info(f"Running post-init SQL script: {file_path}")
-                    query = file_path.read_text(encoding="utf-8")   
-                    with cls.get_connection(database=entry["database"]) as conn:
-                        conn.execute(sqlalchemy.text(query))
-                        conn.commit()
-                elif file_name.endswith(".py"):
-                    logger.info(f"Running post-init Python script: {file_path}")
-                    subprocess.run(
-                        [sys.executable, str(file_path)],
-                        cwd=post_init_dir,
-                        check=True,
-                        env={**os.environ, "PYTHONPATH": str(post_init_dir)},
-                    )
+                try:
+                    file_name:str = entry["file"]
+                    file_path:Path = post_init_dir / file_name
+                    if file_name.endswith(".sql"):
+                        logger.info(f"Running post-init SQL script: {file_path}")
+                        query = file_path.read_text(encoding="utf-8")   
+                        with cls.get_connection(database=entry["database"]) as conn:
+                            conn.execute(sqlalchemy.text(query))
+                            conn.commit()
+                    elif file_name.endswith(".py"):
+                        logger.info(f"Running post-init Python script: {file_path}")
+                        subprocess.run(
+                            [sys.executable, str(file_path)],
+                            cwd=post_init_dir,
+                            check=True,
+                            env={**os.environ, "PYTHONPATH": str(post_init_dir)},
+                        )
+                except:
+                    logger.error(f"Failed to run post-init script {file_name} for database {db}", exc_info=True)
+                    raise
 
 
     @classmethod
