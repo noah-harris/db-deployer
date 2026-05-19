@@ -23,13 +23,13 @@ class DatabaseObject:
     
     @cached_property
     def schema(self) -> str | None:
-        if self.type == 'schema':
+        if self.type in ['schema', 'index']:
             return None
         return self.script_path.stem.split('.', 1)[0]
 
     @property
     def name(self) -> str:
-        if self.type == 'schema':
+        if self.type in ['schema', 'index']:
             return self.script_path.stem
         return self.script_path.stem.split('.', 1)[1]
 
@@ -65,7 +65,7 @@ class DatabaseObject:
         return __strip_comments(obj_definition)
     
     def __repr__(self):
-        if self.type == 'schema':
+        if self.type in ['schema', 'index']:
             return f"{self.database}.{self.name} ({self.type})"
         return f"{self.database}.{self.schema}.{self.name} ({self.type})"
     
