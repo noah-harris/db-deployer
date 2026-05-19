@@ -406,7 +406,7 @@ class SqlDialect:
         written. On import, the schema is re-introspected from the live database.
 
         Output:
-        - <table.script_path>  the CSV (UTF-16 LE with BOM, CRLF terminators,
+        - <table.script_path>  the CSV (UTF-8 with BOM, CRLF terminators,
                                 all non-null text/temporal/binary fields quoted,
                                 NULL = unquoted empty, '' = quoted empty)
         """
@@ -428,10 +428,10 @@ class SqlDialect:
 
         # We write manually because csv.QUOTE_NONNUMERIC quotes None as "",
         # which would collide with our convention (empty string is "", NULL is unquoted empty).
-        # Encoding is UTF-16 LE with BOM ("utf-16") for Windows/SQL Server compatibility.
+        # Encoding is UTF-8 with BOM ("utf-8-sig") for universal compatibility and correct emoji support.
         csv_path = restore_point_path / table.database / f"{table.schema}.{table.name}.csv"
         csv_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(csv_path, "w", encoding="utf-16", newline="") as f:
+        with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
             f.write(",".join(cls._quote_field(c.name) for c in cols) + "\r\n")
             for row in df.itertuples(index=False, name=None):
                 cells = [cls._serialize_cell(v, col) for v, col in zip(row, cols)]
@@ -505,7 +505,7 @@ class SqlDialect:
             # fields don't terminate a row.
             body = f.read()
             raw_rows = cls._parse_body_with_quote_info(body)
-
+ 
         # Build column-wise data.
         data: dict[str, list[Any]] = {c.name: [] for c in cols}
         for row_idx, row in enumerate(raw_rows, start=1):
