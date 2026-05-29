@@ -479,26 +479,25 @@ class SqlDialect:
                 raise ValueError(f"CSV {csv_path} is empty (no header).")
             header = next(csv.reader([header_line]))
 
-            # Validate header against the live table schema. Fail loudly on any mismatch.
-            if header != expected_names:
-                extra_in_csv = [c for c in header if c not in expected_names]
-                missing_from_csv = [c for c in expected_names if c not in header]
-                details = []
-                if len(header) != len(expected_names):
-                    details.append(f"column count differs: CSV has {len(header)}, table has {len(expected_names)}")
-                if extra_in_csv:
-                    details.append(f"columns in CSV but not in table: {extra_in_csv}")
-                if missing_from_csv:
-                    details.append(f"columns in table but not in CSV: {missing_from_csv}")
-                if not details:
-                    # Same set of names, different order.
-                    details.append("column order differs between CSV and table")
+            # Validate header against the live table schema.
+            # Extra CSV columns (not in table) are always an error.
+            # Table columns absent from the CSV are allowed — NULL will be inserted.
+            extra_in_csv = [c for c in header if c not in expected_names]
+            missing_from_csv = [c for c in expected_names if c not in header]
+
+            if extra_in_csv:
                 raise ValueError(
                     f"CSV header does not match destination table "
                     f"{table.database}.{table.schema}.{table.name}.\n"
                     f"  CSV:    {header}\n"
                     f"  Table:  {expected_names}\n"
-                    f"  Issue:  {'; '.join(details)}"
+                    f"  Issue:  columns in CSV but not in table: {extra_in_csv}"
+                )
+
+            if missing_from_csv:
+                logger.warning(
+                    f"Columns missing from CSV for {table.database}.{table.schema}.{table.name}: "
+                    f"{missing_from_csv}. NULL will be inserted for these columns."
                 )
 
             # Parse the rest as one stream so embedded newlines inside quoted
@@ -506,16 +505,22 @@ class SqlDialect:
             body = f.read()
             raw_rows = cls._parse_body_with_quote_info(body)
  
-        # Build column-wise data.
+        # Build column-wise data. Columns present in the table but absent from the
+        # CSV receive None (NULL); the DB engine enforces any NOT NULL constraints.
+        csv_col_idx = {name: idx for idx, name in enumerate(header)}
         data: dict[str, list[Any]] = {c.name: [] for c in cols}
         for row_idx, row in enumerate(raw_rows, start=1):
-            if len(row) != len(cols):
+            if len(row) != len(header):
                 raise ValueError(
-                    f"CSV row {row_idx} has {len(row)} fields, expected {len(cols)} "
+                    f"CSV row {row_idx} has {len(row)} fields, expected {len(header)} "
                     f"(table {table.database}.{table.schema}.{table.name})"
                 )
-            for (txt, was_quoted), col in zip(row, cols):
-                data[col.name].append(cls._deserialize_cell(txt, was_quoted, col))
+            for col in cols:
+                if col.name in csv_col_idx:
+                    txt, was_quoted = row[csv_col_idx[col.name]]
+                    data[col.name].append(cls._deserialize_cell(txt, was_quoted, col))
+                else:
+                    data[col.name].append(None)
 
         # Build DataFrame with the same nullable dtypes we used on read.
         df = pd.DataFrame(data)
