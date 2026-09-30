@@ -11,3 +11,6 @@ docker-compose.yml
 docker-compose.example.yml
 
 README.md
+
+!SAMPLE_DATABASE
+!SAMPLE_BACKUP
