@@ -1,9 +1,11 @@
 # Features
-- status.json needs to be created if it does not exist
+- Compile phase where structural errors are caught?
 
-# Bugfix
-- trigger.sql files should not require a schema like schema.sql files as they dont have a schema, their table does.
 
 # Update
 - remove image filename printing on startup
 - Info debug
+- If the script crashes it needs to gracefully restore it self somehow so that it will always be able to backup again
+
+
+IF any errors appear, then dont start saving.

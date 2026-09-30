@@ -67,14 +67,17 @@ class Postgres(SqlDialect):
     def _cast_decimal(cls, column: str) -> str:
         return f"CAST({cls._quote_identifier(column)} AS VARCHAR(50)) AS {cls._quote_identifier(column)}"
 
+
     @classmethod
     def _cast_float(cls, column: str) -> str:
         return f"CAST({cls._quote_identifier(column)} AS VARCHAR) AS {cls._quote_identifier(column)}"
+
 
     @classmethod
     def _disable_triggers(cls, table: DatabaseObject):
         with cls._get_autocommit_connection(database=table.database) as conn:
             conn.execute(sqlalchemy.text(f"ALTER TABLE {cls._get_object_identifier(table)} DISABLE TRIGGER ALL"))
+
 
     @classmethod
     def _enable_triggers(cls, table: DatabaseObject):

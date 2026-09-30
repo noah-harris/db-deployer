@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
 from config import SQL_SCRIPTS_DIR
-# Z:\Repositories\ledgr\database\db\type\schema.name.sql
 
+_NO_SCHEMA_TYPES = ['schema', 'index']
 
 @dataclass
 class DatabaseObject:
@@ -16,26 +16,31 @@ class DatabaseObject:
     # project/database/type/schema.name.sql for all types except schema, which is project/database/schema/name.sql
     # Thus we work backwards from the filename to get the name, schema, type, and database. We also read the file contents to get the definition which we will use for dependency parsing later.
 
+
     @cached_property
     def database(self) -> str:
         self.script_path.relative_to(SQL_SCRIPTS_DIR)
         return self.script_path.parts[-3]
+
     
     @cached_property
     def schema(self) -> str | None:
-        if self.type in ['schema', 'index']:
+        if self.type in _NO_SCHEMA_TYPES:
             return None
         return self.script_path.stem.split('.', 1)[0]
 
+
     @property
     def name(self) -> str:
-        if self.type in ['schema', 'index']:
+        if self.type in _NO_SCHEMA_TYPES:
             return self.script_path.stem
         return self.script_path.stem.split('.', 1)[1]
+
 
     @cached_property
     def type(self) -> str:
         return self.script_path.parts[-2]
+
 
     @cached_property
     def definition(self) -> str:
@@ -63,11 +68,13 @@ class DatabaseObject:
         with open(self.script_path, "r", encoding=enc) as f:
             obj_definition = f.read()
         return __strip_comments(obj_definition)
+
     
     def __repr__(self):
-        if self.type in ['schema', 'index']:
+        if self.type in _NO_SCHEMA_TYPES:
             return f"{self.database}.{self.name} ({self.type})"
         return f"{self.database}.{self.schema}.{self.name} ({self.type})"
+
     
     def __eq__(self, value):
         if not isinstance(value, DatabaseObject):
@@ -78,12 +85,15 @@ class DatabaseObject:
             self.name == value.name and
             self.type == value.type
         )
+
     
     def __hash__(self):
         return hash((self.database, self.schema, self.name, self.type))
+
     
     def add_dependent(self, dependent:"DatabaseObject"):
         self.dependents.add(dependent)
+
 
     def add_dependency(self, dependency:"DatabaseObject"):
         self.dependencies.add(dependency)

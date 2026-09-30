@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from functools import cached_property
 from pathlib import Path
 import sqlalchemy
 import json
@@ -36,9 +35,13 @@ class SqlDialect:
     VALID_OBJECT_TYPES:list[str] = []
     
     DATABASE_OBJECTS = {}
+    _REF_TERMINATORS = (' ', '\n', '\t', '\r', ',', '(', ')', ';')
 
     @classmethod
     def _latest_restore_point(cls) -> Path | None:
+        """
+            Returns the Path of the latest restore point, or None if no restore points exist.
+        """
         dirs = sorted(
             (d for d in config.RESTORE_POINTS_DIR.iterdir() if d.is_dir()),
             key=lambda d: d.name,
@@ -46,9 +49,8 @@ class SqlDialect:
         )
         if len(dirs) > 0:
             return dirs[0]
-        
         if not dirs:
-            return
+            return None
         
         
     @classmethod
@@ -734,9 +736,7 @@ class SqlDialect:
                     object_mapping[obj.stem] = DatabaseObject(script_path=obj)
         cls._object_mapping = object_mapping
         return cls._object_mapping
-    
 
-    _REF_TERMINATORS = (' ', '\n', '\t', '\r', ',', '(', ')', ';')
 
     @classmethod
     def _pattern_in(cls, pattern: str, definition: str) -> bool:
@@ -748,6 +748,7 @@ class SqlDialect:
             return pattern in definition
         base = pattern[:-1]
         return definition.endswith(base) or any(f"{base}{t}" in definition for t in cls._REF_TERMINATORS)
+
 
     @classmethod
     def _load_object_dependencies(cls):

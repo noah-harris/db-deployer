@@ -64,19 +64,23 @@ class MicrosoftSQLServer(SqlDialect):
     @staticmethod
     def _quote_identifier(name: str) -> str:
         return "[" + name.replace("]", "]]") + "]"
+
     
     @classmethod
     def _cast_decimal(cls, column:str) -> str:
         return f"CONVERT(VARCHAR(50), {cls._quote_identifier(column)}) AS {cls._quote_identifier(column)}"
+
     
     @classmethod
     def _cast_float(cls, column:str) -> str:
         return f"CONVERT(VARCHAR(50), {cls._quote_identifier(column)}, 3) AS {cls._quote_identifier(column)}"
 
+
     @classmethod
     def _disable_triggers(cls, table: DatabaseObject):
         with cls._get_autocommit_connection(database=table.database) as conn:
             conn.execute(sqlalchemy.text(f"ALTER TABLE {cls._get_object_identifier(table)} DISABLE TRIGGER ALL"))
+
 
     @classmethod
     def _enable_triggers(cls, table: DatabaseObject):
