@@ -34,6 +34,4 @@ SQL_SCRIPTS_DIR.mkdir(exist_ok=True, parents=True)
 
 SUPPORTED_DIALECTS = ["mssql", "postgres"]
 
-
-ORDER_FILE = SQL_SCRIPTS_DIR / 'order.json'
 STATUS_FILE = SQL_SCRIPTS_DIR / 'status.json'

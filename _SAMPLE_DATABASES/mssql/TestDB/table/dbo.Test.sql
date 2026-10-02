@@ -1,4 +1,5 @@
 CREATE TABLE [dbo].[Test] (
     ID INT PRIMARY KEY,
-    Name NVARCHAR(100) NOT NULL
+    Name NVARCHAR(100) NOT NULL,
+    ComputedColumn AS (GETDATE()) 
 );

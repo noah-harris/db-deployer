@@ -1,9 +1,9 @@
 from contextlib import contextmanager
 import sqlalchemy
-from . import SqlDialect
+from . import SQLDialect
 from .database_object import DatabaseObject
 
-class Postgres(SqlDialect):
+class Postgres(SQLDialect):
     PYTHON_DRIVER = 'psycopg2'
     MASTER_DATABASE='postgres'
     CONNECTION_PARAMS = {}

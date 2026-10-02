@@ -1,9 +1,10 @@
-_SAMPLE_BACKUP/*
+status.json
+_SAMPLE_BACKUPS
+order.json
+
 
 .claude
 docker-compose.yml
-docker-compose.example.postgres.yml
-docker-compose.example.mssql.yml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

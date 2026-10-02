@@ -12,5 +12,5 @@ docker-compose.example.yml
 
 README.md
 
-!SAMPLE_DATABASE
-!SAMPLE_BACKUP
+_SAMPLE_DATABASE
+_SAMPLE_BACKUP

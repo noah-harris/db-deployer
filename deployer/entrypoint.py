@@ -2,10 +2,10 @@ import signal
 import sys
 import threading
 from config import *
-from dialects import mapping, SqlDialect
+from dialects import mapping, SQLDialect
 
 logger = make_logger("deployer.entrypoint")
-dialect: SqlDialect = mapping.get(DIALECT.lower())
+dialect: SQLDialect = mapping.get(DIALECT.lower())
 
 stop_event = threading.Event()
 
